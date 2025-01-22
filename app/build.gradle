@@ -1,8 +1,8 @@
-apply plugin: 'com.android.application'
-apply plugin: 'com.jaredsburrows.license'
-
-// Needed for gRPC
-apply plugin: 'com.google.protobuf'
+plugins {
+    id 'com.android.application'
+    id 'com.jaredsburrows.license' version '0.8.+' // Use the plugins block for this
+    id 'com.google.protobuf' // Needed for gRPC
+}
 
 import com.android.build.OutputFile
 
@@ -20,7 +20,6 @@ android {
     }
     buildTypes {
         debug {
-            // with the following line we can install release and debug version simultaneously
             applicationIdSuffix ".debug"
             resValue "string", "app_name", "Zap Debug"
             debuggable true
@@ -38,7 +37,6 @@ android {
         disable 'MissingTranslation'
     }
 
-    // when using lambda expression we need java version 1.8 or higher
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -47,37 +45,9 @@ android {
     testOptions {
         unitTests.returnDefaultValues = true
     }
-
-    // Deactivated for now, as it makes no difference anymore. This will have to be reenabled for local LND
-    /*
-    splits {
-
-        // Configures multiple APKs based on ABI.
-        abi {
-
-            // Enables building multiple APKs per ABI.
-            enable true
-
-            // Resets the list of ABIs that Gradle should create APKs for to none.
-            reset()
-
-            // Specifies a list of ABIs that Gradle should create APKs for.
-            include "armeabi-v7a", "arm64-v8a", "x86"
-
-            // Specifies that we do not want to also generate a universal APK that includes all ABIs.
-            universalApk false
-        }
-    }
-
-    packagingOptions {
-        exclude "lib/armeabi/**"
-        exclude "lib/mips/**"
-        exclude "lib/mips64/**"
-    }
-     */
 }
 
-// Execute this manually
+// License Report Plugin Configuration
 licenseReport {
     generateHtmlReport = false
     generateJsonReport = true
@@ -86,13 +56,17 @@ licenseReport {
 }
 
 // Copy the licenses file into the res dir if it exists
-copy {
-    from "$buildDir/reports/licenses/licenseReleaseReport.json"
-    into "$projectDir/src/main/res/raw/"
-    rename "licenseReleaseReport.json", "license_report.json"
+tasks.register('copyLicenses') {
+    doLast {
+        copy {
+            from "$buildDir/reports/licenses/licenseReleaseReport.json"
+            into "$projectDir/src/main/res/raw/"
+            rename "licenseReleaseReport.json", "license_report.json"
+        }
+    }
 }
 
-//  Needed for gRPC
+// Needed for gRPC
 sourceSets {
     main.java.srcDirs += "${protobuf.generatedFilesBaseDir}/main/javalite"
 }
@@ -100,41 +74,19 @@ sourceSets {
 // Map for the version code that gives each ABI a value.
 ext.abiCodes = ['armeabi-v7a': 1, 'arm64-v8a': 2, 'x86': 3]
 
-// For each APK output variant, override versionCode with a combination of
-// ext.abiCodes * 1000 + variant.versionCode. In this example, variant.versionCode
-// is equal to defaultConfig.versionCode.
+// For each APK output variant, override versionCode
 android.applicationVariants.all { variant ->
-
-    // Assigns a different version code for each output APK
-    // other than the universal APK.
     variant.outputs.each { output ->
-
-        // Stores the value of ext.abiCodes that is associated with the ABI for this variant.
-        def baseAbiVersionCode =
-                // Determines the ABI for this variant and returns the mapped value.
-                project.ext.abiCodes.get(output.getFilter(OutputFile.ABI))
-
-        // Because abiCodes.get() returns null for ABIs that are not mapped by ext.abiCodes,
-        // the following code does not override the version code for universal APKs.
-        // However, because we want universal APKs to have the lowest version code,
-        // this outcome is desirable.
+        def baseAbiVersionCode = project.ext.abiCodes.get(output.getFilter(OutputFile.ABI))
         if (baseAbiVersionCode != null) {
-
-            // Assigns the new version code to versionCodeOverride, which changes the version code
-            // for only the output APK, not for the variant itself. Skipping this step simply
-            // causes Gradle to use the value of variant.versionCode for the APK.
-            // We will have to start at 4000, 5000, etc when we reenable splitting
-            output.versionCodeOverride =
-                    baseAbiVersionCode * 1000 + 3000 + variant.versionCode
+            output.versionCodeOverride = baseAbiVersionCode * 1000 + 3000 + variant.versionCode
         } else {
-            // The baseAbi version has to start at 3000+ as we had split versions before.
-            output.versionCodeOverride =
-                    3000 + variant.versionCode
+            output.versionCodeOverride = 3000 + variant.versionCode
         }
     }
 }
 
-//  Needed for gRPC
+// Needed for gRPC
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:3.13.0"
@@ -155,8 +107,6 @@ protobuf {
             }
             task.plugins {
                 grpc {
-                    // This will generate the ServiceGrpc
-                    // Options added to --grpc_out
                     option 'lite'
                 }
             }
@@ -164,45 +114,23 @@ protobuf {
     }
 }
 
-
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-
-    // QR-Code scanner:
-    implementation('com.journeyapps:zxing-android-embedded:4.3.0')
-
-    // QR-Code generator:
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     implementation 'com.github.kenglxn.QRGen:android:3.0.1'
-
-    // Library to restart app
     implementation 'com.jakewharton:process-phoenix:2.1.2'
-
-    // HTTP library to perform API interaction
     implementation "com.squareup.okhttp3:okhttp:4.9.0"
-
-    // Library for the avatar images
     implementation 'com.github.michaelWuensch:avathor-android-library:1.1.0'
-
-    // Tor implementation
     implementation "io.matthewnelson.topl-android:tor-binary:0.4.6.5"
     implementation "io.matthewnelson.topl-android:topl-service:2.1.2"
-
-    // gRPC implementation to communicate with lnd
     implementation 'io.grpc:grpc-okhttp:1.51.1'
     implementation 'io.grpc:grpc-protobuf-lite:1.51.1'
     implementation 'io.grpc:grpc-stub:1.51.1'
     implementation 'javax.annotation:javax.annotation-api:1.3.2'
     implementation 'com.google.code.gson:gson:2.9.0'
     compileOnly 'com.google.api.grpc:googleapis-common-protos:0.0.3'
-
-    // Used for base encoding and URI escaping
     implementation 'com.google.guava:guava:29.0-android'
-
-    // Asynchronous programming library
     implementation "io.reactivex.rxjava3:rxandroid:3.0.0"
-
-
-    // Basic Android libraries
     implementation 'androidx.appcompat:appcompat:1.4.2'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
@@ -211,8 +139,6 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-extensions:2.2.0'
     implementation "androidx.security:security-crypto:1.1.0-alpha03"
     implementation 'com.google.android.material:material:1.4.0'
-
-    // Libraries for tests
     testImplementation 'org.json:json:20200518'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.5.2'

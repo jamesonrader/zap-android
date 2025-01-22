@@ -1,1 +1,12 @@
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        jcenter() // Add if older libraries still depend on it
+        maven { url 'https://jitpack.io' } // Add if you use JitPack
+    }
+}
+
+rootProject.name = "zap-android"
 include ':app'
